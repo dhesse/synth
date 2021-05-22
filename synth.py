@@ -39,6 +39,12 @@ class PulseGen(Oscillator):
         return self.amplitude * (t > numpy.round(t))
 
 @dataclass
+class NoiseGen(Oscillator):
+
+    def get(self, start_frame: int, frames: int) -> numpy.ndarray:
+        return self.amplitude * numpy.random.uniform(-1.,1.,frames).reshape(-1, 1)
+
+@dataclass
 class Envelope():
 
     attack: float = 0.02
@@ -94,7 +100,8 @@ def n_to_freq(n: int) -> float:
 
 PETER_GUNN = cycle([
     Note([PulseGen(n_to_freq(n), amplitude=0.2),
-          ToothGen(n_to_freq(n), amplitude=0.8)])
+          ToothGen(n_to_freq(n), amplitude=0.8),
+          NoiseGen(0, amplitude=0.01)])
     for n in [21, 21, 23, 21, 24, 21, 26, 25]
 ])
 
