@@ -21,7 +21,14 @@ class WaveGen:
     samples: numpy.ndarray
 
     def get(self, start_frame: int, frames: int) -> numpy.ndarray:
-        return self.samples[start_frame:start_frame+frames,0].reshape(-1, 1)
+        high = start_frame + frames
+        if start_frame > self.samples.shape[0]:
+            return numpy.zeros((frames, 1))
+        if high > self.samples.shape[0]:
+            result = numpy.zeros((frames, 1))
+            result[:self.samples.shape[0] - start_frame,:] = self.samples[start_frame:,0].reshape(-1, 1)
+            return result
+        return self.samples[start_frame:high,0].reshape(-1, 1)
 
 @dataclass
 class SinGen(Oscillator):
@@ -110,25 +117,27 @@ def n_to_freq(n: int) -> float:
 PETER_GUNN = cycle([
     Note([PulseGen(n_to_freq(n), amplitude=0.1),
           ToothGen(n_to_freq(n), amplitude=0.5),
-          NoiseGen(0, amplitude=0.05)])
+          NoiseGen(0, amplitude=0.07)])
     for n in [21, 21, 23, 21, 24, 21, 26, 25]
 ])
 
 SAMPLES = {"K": "/Users/dirkhesse/code/synth/K/428__tictacshutup__prac-kick.wav",
 "H": "/Users/dirkhesse/code/synth/H/426__tictacshutup__prac-hat.wav",
 "S": "/Users/dirkhesse/code/synth/S/447__tictacshutup__prac-snare.wav"
-}
+} 
 
 BOOM_CHAH = cycle([WaveGen(sf.read(SAMPLES[i])[0]) for i in "KHSH"])
 
 if __name__ == "__main__":
 
-    sounds = zip(BOOM_CHAH, PETER_GUNN)
+    sounds = zip(BOOM_CHAH)#, PETER_GUNN)
     notes = next(sounds)
-    bpm = 200
+    bpm = 100
     bps = bpm / 60
     sample_rate = 44100
-    fpn = int(sample_rate / bps)
+    bar_length = 4
+    note_resolution = 8 # 8th notes
+    fpn = int(sample_rate / bps / note_resolution * bar_length)
     idx = 0
     def callback(outdata, frames, time, status):
         global idx
