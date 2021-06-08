@@ -3,6 +3,7 @@ import numpy
 import sounddevice as sd
 from typing import List
 from itertools import cycle
+import soundfile as sf
 
 @dataclass
 class Oscillator:
@@ -13,6 +14,14 @@ class Oscillator:
 
     def get(self, start_frame: int, frames: int) -> numpy.ndarray:
         raise NotImplementedError()
+
+@dataclass
+class WaveGen:
+
+    samples: numpy.ndarray
+
+    def get(self, start_frame: int, frames: int) -> numpy.ndarray:
+        return self.samples[start_frame:start_frame+frames,0].reshape(-1, 1)
 
 @dataclass
 class SinGen(Oscillator):
@@ -99,17 +108,24 @@ def n_to_freq(n: int) -> float:
     return 2**((n - 49)/12)*440
 
 PETER_GUNN = cycle([
-    Note([PulseGen(n_to_freq(n), amplitude=0.2),
-          ToothGen(n_to_freq(n), amplitude=0.8),
-          NoiseGen(0, amplitude=0.01)])
+    Note([PulseGen(n_to_freq(n), amplitude=0.1),
+          ToothGen(n_to_freq(n), amplitude=0.5),
+          NoiseGen(0, amplitude=0.05)])
     for n in [21, 21, 23, 21, 24, 21, 26, 25]
 ])
 
+SAMPLES = {"K": "/Users/dirkhesse/code/synth/K/428__tictacshutup__prac-kick.wav",
+"H": "/Users/dirkhesse/code/synth/H/426__tictacshutup__prac-hat.wav",
+"S": "/Users/dirkhesse/code/synth/S/447__tictacshutup__prac-snare.wav"
+}
+
+BOOM_CHAH = cycle([WaveGen(sf.read(SAMPLES[i])[0]) for i in "KHSH"])
+
 if __name__ == "__main__":
 
-    notes = PETER_GUNN
-    note = next(notes)
-    bpm = 180
+    sounds = zip(BOOM_CHAH, PETER_GUNN)
+    notes = next(sounds)
+    bpm = 200
     bps = bpm / 60
     sample_rate = 44100
     fpn = int(sample_rate / bps)
@@ -121,12 +137,14 @@ if __name__ == "__main__":
         start_idx = 0
         while idx + frames > fpn:
             frames_left_on_note = fpn - idx
-            outdata[start_idx:start_idx + frames_left_on_note] = note.get(idx, frames_left_on_note)
+            data = sum(note.get(idx, frames_left_on_note) for note in notes)
+            outdata[start_idx:start_idx + frames_left_on_note] = data
             start_idx += frames_left_on_note
-            note = next(notes)
+            notes = next(sounds)
             frames -= frames_left_on_note
             idx = 0
-        outdata[start_idx:] = note.get(idx, frames)
+        data = sum(note.get(idx, frames) for note in notes)
+        outdata[start_idx:] = data
         idx += frames
     
     with sd.OutputStream(callback=callback, channels=1):
