@@ -154,7 +154,8 @@ class Note:
 def n_to_freq(n: int) -> float:
     return 2**((n - 49)/12)*440
 
-PETER_GUNN = cycle([
+def PeterGunn():
+    return cycle([
     Note([PulseGen(44100, n_to_freq(n), amplitude=0.1),
           ToothGen(44100, n_to_freq(n), amplitude=0.5),
           NoiseGen(44100, 0, amplitude=0.07)])
@@ -166,7 +167,8 @@ SAMPLES = {"K": "/Users/dirkhesse/code/synth/K/428__tictacshutup__prac-kick.wav"
 "S": "/Users/dirkhesse/code/synth/S/447__tictacshutup__prac-snare.wav"
 } 
 
-BOOM_CHAH = cycle([WaveGen(sf.read(SAMPLES[i])[0]) for i in "KHSH"])
+def BoomChah():
+    return cycle([WaveGen(sf.read(SAMPLES[i])[0]) for i in "KHSH"])
 
 @dataclass
 class Config:
@@ -184,37 +186,38 @@ class Config:
         """Frames per note"""
         return int(self.sample_rate / self.bps
                    / self.note_resolution * self.bar_length)
-    
+
+class Synth:
+
+    def __init__(self, sounds, cfg):
+        self.sounds = sounds
+        self.notes = next(sounds)
+        self.idx = 0
+        self.cfg = cfg
+
+    def __call__(self, outdata, frames, time, status):
+        start_idx = 0
+        while self.idx + frames > self.cfg.fpn:
+            frames_left_on_note = self.cfg.fpn - self.idx
+            data = sum(note.get(self.idx, frames_left_on_note)
+                       for note in self.notes)
+            outdata[start_idx:start_idx + frames_left_on_note] = data
+            start_idx += frames_left_on_note
+            self.notes = next(self.sounds)
+            frames -= frames_left_on_note
+            self.idx = 0
+        data = sum(note.get(self.idx, frames) for note in self.notes)
+        outdata[start_idx:] = data
+        self.idx += frames
+        
 
 if __name__ == "__main__":
 
-    sounds = zip(BOOM_CHAH, PETER_GUNN)
-    notes = next(sounds)
+    sounds = zip(BoomChah(), PeterGunn())
     cfg = Config(bpm = 100, sample_rate = 44100,
                  bar_length = 4, note_resolution = 8)
-    fpn = cfg.fpn
-    idx = 0
-    #echo = Echo(note, 0.5, 0.12)
-    def callback(outdata, frames, time, status):
-        global idx
-        global note
-        global notes
-        global echo
-        start_idx = 0
-        while idx + frames > fpn:
-            frames_left_on_note = fpn - idx
-            #data = echo.get(idx, frames_left_on_note)
-            data = sum(note.get(idx, frames_left_on_note) for note in notes)
-            outdata[start_idx:start_idx + frames_left_on_note] = data
-            start_idx += frames_left_on_note
-            #echo.sound = next(sounds)[0]
-            notes = next(sounds)
-            frames -= frames_left_on_note
-            idx = 0
-        #data = echo.get(idx, frames)
-        data = sum(note.get(idx, frames) for note in notes)
-        outdata[start_idx:] = data
-        idx += frames
+
+    callback = Synth(sounds, cfg)
     
     with sd.OutputStream(callback=callback, channels=1):
         print('#' * 80)
